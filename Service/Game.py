@@ -1,11 +1,5 @@
 from collections import Counter
 
-"""
-type Coord = (Int, Int)
-type Board = [Cell]
-type Cell = Coord
-"""
-
 
 class Game(object):
     def __init__(self):
@@ -14,28 +8,54 @@ class Game(object):
         self.started = False
 
     def change(self, state):
+        """
+        Evolve game to next state based on input state,
+        and increment the game step
+        """
         self.state = next_loop(state)
         self.step += 1
         return self.state
 
     def current(self):
+        """
+        Return current living cells 
+        """
         return self.state
 
     def time(self):
+        """
+        Internal steps of game
+        """
         return self.step
 
     def reset_time(self):
+        """
+        Reset internal steps of game to 0
+        """
         self.step = 0
 
     def start(self):
+        """
+        Set game state as started
+        """
         self.started = True
 
     def stop(self):
+        """
+        Set game state as stopped 
+        """
         self.started = False
 
 
 def transform_input(target):
     return set(map(tuple, target))
+
+
+"""
+    type Coord = (Int, Int)
+    type Board = [Cell]
+    type Cell = Coord
+"""
 
 
 def neighbours(current):

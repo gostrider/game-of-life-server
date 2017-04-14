@@ -25,14 +25,23 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
         pass
 
     def loop(self):
-
+        """
+        Periodic update the state based on current state
+        State -> Next State
+        
+        """
         next_loop = self.game.change(self.game.current()) \
             if self.game.started else {}
         self.write_message(p_json(time=current_time(),
                                   next_loop=str(next_loop)))
 
     def open(self):
-
+        """
+        Setup a periodic call on each connection
+        Provide an uuid for each connection
+        Add connection to connection list for further action
+        
+        """
         self.notification = PeriodicCallback(self.loop, 1000)
         self.notification.start()
         self.user_id = uuid4()
@@ -42,6 +51,10 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
             print(str(self.user_id) + '+')
 
     def on_message(self, message):
+        """
+        A mini dispatcher of behavior determine by incoming payload
+        
+        """
         payload = tornado_escape.json_decode(message)
         action, result = payload['action'], ''
 
@@ -58,14 +71,28 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
             self.game.reset_time()
 
     def on_close(self):
+        """
+        When connection close
+        Stop the periodic call
+        Remove connection from connection list
+         
+        """
         self.notification.stop()
         self.clients.remove((self.user_id, self))
         print(str(self.user_id) + '-')
 
 
 def p_json(**kwargs):
+    """
+    Parse keyword arguments as json format
+    
+    """
     return '{}'.format(json_dumps(kwargs))
 
 
 def current_time():
+    """
+    Return current time
+    
+    """
     return '{dt:%H}:{dt:%M}:{dt:%S}'.format(dt=datetime.datetime.now())
