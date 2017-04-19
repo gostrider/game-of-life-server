@@ -1,11 +1,12 @@
+import datetime
+from json import dumps as json_dumps
 from uuid import uuid4
 
 import tornado.escape as tornado_escape
 import tornado.websocket
 from tornado.ioloop import PeriodicCallback
-from json import dumps as json_dumps
-from Service.Game import transform_input
-import datetime
+
+from Service.Game import transform_input, transform_output
 
 
 class WebSocketHandler(tornado.websocket.WebSocketHandler):
@@ -30,9 +31,12 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
         State -> Next State
         
         """
-        next_loop = self.game.change(self.game.current()) \
+        self.game.change(self.game.current())
+
+        next_loop = self.game.current() \
             if self.game.started else {}
-        self.write_message(p_json(time=current_time(),
+
+        self.write_message(p_json(time=str(self.game.time()),
                                   next_loop=str(next_loop)))
 
     def open(self):
@@ -42,8 +46,8 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
         Add connection to connection list for further action
         
         """
-        self.notification = PeriodicCallback(self.loop, 1000)
-        self.notification.start()
+        # self.notification = PeriodicCallback(self.loop, 1000)
+        # self.notification.start()
         self.user_id = uuid4()
 
         if self.user_id not in self.clients.get_all_clients():
@@ -62,9 +66,10 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
             self.write(p_json(result=self.game.current()))
 
         elif action == 'change':
+            print(payload['cell'])
             self.game.start()
-            result = self.game.change(transform_input(payload['cell']))
-            self.write_message(p_json(result=list(result)))
+            self.game.change(transform_input(payload['cell']))
+            self.write_message(p_json(result=list(transform_output(self.game.current()))))
 
         elif action == 'reset':
             self.game.stop()
@@ -77,7 +82,7 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
         Remove connection from connection list
          
         """
-        self.notification.stop()
+        # self.notification.stop()
         self.clients.remove((self.user_id, self))
         print(str(self.user_id) + '-')
 

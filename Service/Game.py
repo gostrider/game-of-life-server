@@ -14,7 +14,6 @@ class Game(object):
         """
         self.state = next_loop(state)
         self.step += 1
-        return self.state
 
     def current(self):
         """
@@ -48,7 +47,19 @@ class Game(object):
 
 
 def transform_input(target):
-    return set(map(tuple, target))
+    def tuple_each(pair):
+        return pair['x'], pair['y']
+    
+    return set(map(tuple_each, target))
+
+
+def transform_output(target):
+    return map(lambda p: {
+        'x': p[0], 
+        'y': p[1],
+        'alive': 'O',
+        'color': 'red'
+        }, target)
 
 
 """
@@ -99,6 +110,5 @@ def next_loop(board):
 if __name__ == '__main__':
     game = Game()
     alive = {(0, 0), (1, 0), (2, 0), (5, 6), (5, 7), (5, 8)}
-    game.change(game.change(alive))
     print(str(game.current()))
     pass
