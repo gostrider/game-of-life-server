@@ -8,57 +8,50 @@ class Game(object):
         self.started = False
 
     def change(self, state):
-        """
-        Evolve game to next state based on input state,
-        and increment the game step
-        """
         self.state = next_loop(state)
         self.step += 1
 
     def current(self):
-        """
-        Return current living cells 
-        """
         return self.state
 
     def time(self):
-        """
-        Internal steps of game
-        """
         return self.step
 
     def reset_time(self):
-        """
-        Reset internal steps of game to 0
-        """
         self.step = 0
 
     def start(self):
-        """
-        Set game state as started
-        """
         self.started = True
 
     def stop(self):
-        """
-        Set game state as stopped 
-        """
         self.started = False
+
+    def addOne(self, number=1):
+        return number + 1
+
+    def getTwo(self):
+        return 2
+
+    def do(self, payload):
+        return {
+            "a": self.addOne(payload['number']),
+            "b": self.getTwo()
+        }[payload['action']]
 
 
 def transform_input(target):
     def tuple_each(pair):
         return pair['x'], pair['y']
-    
+
     return set(map(tuple_each, target))
 
 
-def transform_output(target):
+def transform_output(color, target):
     return map(lambda p: {
-        'x': p[0], 
+        'x': p[0],
         'y': p[1],
-        'alive': 'O',
-        'color': 'red'
+        'alive': ['O', 'X'],
+        'color': [color, 'rgb(255,255,255)']
         }, target)
 
 
@@ -72,9 +65,9 @@ def transform_output(target):
 def neighbours(current):
     """
     neighbours :: Coord -> [Coord]
-    
-    :param current: Current cell coordinate 
-    :return: Neighbour coordinate of current cell 
+
+    :param current: Current cell coordinate
+    :return: Neighbour coordinate of current cell
     """
 
     x, y = current
@@ -86,7 +79,7 @@ def neighbours(current):
 def find_neighbours(board):
     """
     find_neighbours :: Board -> Counter [Cell -> Count]
-    
+
     :param board: Current state of world
     :return: All count of neighbours of current world
     """
@@ -97,9 +90,9 @@ def find_neighbours(board):
 def next_loop(board):
     """
     change :: Board -> Board
-    
-    :param board: 
-    :return: 
+
+    :param board:
+    :return:
     """
     possible_cells = counts = find_neighbours(board)
     return {cell for cell in possible_cells
@@ -108,7 +101,8 @@ def next_loop(board):
 
 
 if __name__ == '__main__':
+    alive = {(1, 0), (3, 0), (2, 0), (5, 6), (5, 7), (5, 8)}
     game = Game()
-    alive = {(0, 0), (1, 0), (2, 0), (5, 6), (5, 7), (5, 8)}
+    game.change(alive)
     print(str(game.current()))
     pass

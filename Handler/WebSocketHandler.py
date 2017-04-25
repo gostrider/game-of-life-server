@@ -25,79 +25,53 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
     def data_received(self, chunk):
         pass
 
-    def loop(self):
-        """
-        Periodic update the state based on current state
-        State -> Next State
-        
-        """
-        self.game.change(self.game.current())
-
-        next_loop = self.game.current() \
-            if self.game.started else {}
-
-        self.write_message(p_json(time=str(self.game.time()),
-                                  next_loop=str(next_loop)))
-
     def open(self):
-        """
-        Setup a periodic call on each connection
-        Provide an uuid for each connection
-        Add connection to connection list for further action
-        
-        """
-        # self.notification = PeriodicCallback(self.loop, 1000)
-        # self.notification.start()
         self.user_id = uuid4()
-
         if self.user_id not in self.clients.get_all_clients():
-            self.clients.join((self.user_id, self))
+            self.clients.join((self.user_id, self, []))
             print(str(self.user_id) + '+')
 
     def on_message(self, message):
-        """
-        A mini dispatcher of behavior determine by incoming payload
-        
-        """
         payload = tornado_escape.json_decode(message)
-        action, result = payload['action'], ''
+        action = payload['action']
 
         if action == 'query':
-            self.write(p_json(result=self.game.current()))
-
+            self.query()
         elif action == 'change':
-            print(payload['cell'])
-            self.game.start()
-            self.game.change(transform_input(payload['cell']))
-            self.write_message(p_json(result=list(transform_output(self.game.current()))))
-
+            self.change(color=payload['color'], cells=payload['cells'])
         elif action == 'reset':
-            self.game.stop()
-            self.game.reset_time()
+            self.reset(color=payload['color'])
+        elif action == 'activity':
+            self.activity(color=payload['color'], cells=payload['cells'])
 
     def on_close(self):
-        """
-        When connection close
-        Stop the periodic call
-        Remove connection from connection list
-         
-        """
-        # self.notification.stop()
-        self.clients.remove((self.user_id, self))
+        self.clients.remove(self.user_id)
         print(str(self.user_id) + '-')
+
+    def query(self):
+        resp_json = p_json(action='query', result=self.game.current())
+        self.write_message(resp_json)
+
+    def change(self, **kwargs):
+        self.game.change(transform_input(kwargs['cells']))
+        result_response = transform_output(kwargs['color'], self.game.current())
+        resp_json = p_json(color=kwargs['color'], action='result', cells=list(result_response))
+        self.clients.fan_out(resp_json)
+
+    def activity(self, **kwargs):
+        resp_json = p_json(color=kwargs['color'], action='activity', cells=kwargs['cells'])
+        self.clients.broadcast(self.user_id, resp_json)
+
+    def reset(self, **kwargs):
+        self.game.stop()
+        self.game.reset_time()
+        resp_json = p_json(color=kwargs['color'], action='reset')
+        self.clients.broadcast(self.user_id, resp_json)
 
 
 def p_json(**kwargs):
-    """
-    Parse keyword arguments as json format
-    
-    """
     return '{}'.format(json_dumps(kwargs))
 
 
 def current_time():
-    """
-    Return current time
-    
-    """
     return '{dt:%H}:{dt:%M}:{dt:%S}'.format(dt=datetime.datetime.now())
