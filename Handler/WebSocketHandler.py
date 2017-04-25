@@ -39,10 +39,10 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
             self.query()
         elif action == 'change':
             self.change(color=payload['color'], cells=payload['cells'])
-        elif action == 'reset':
-            self.reset(color=payload['color'])
         elif action == 'activity':
             self.activity(color=payload['color'], cells=payload['cells'])
+        elif action == 'reset':
+            self.reset(color=payload['color'])
 
     def on_close(self):
         self.clients.remove(self.user_id)
@@ -53,9 +53,10 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
         self.write_message(resp_json)
 
     def change(self, **kwargs):
+        from_color = kwargs['color']
         self.game.change(transform_input(kwargs['cells']))
-        result_response = transform_output(kwargs['color'], self.game.current())
-        resp_json = p_json(color=kwargs['color'], action='result', cells=list(result_response))
+        result_response = transform_output(from_color, self.game.current())
+        resp_json = p_json(color=from_color, action='result', cells=list(result_response))
         self.clients.fan_out(resp_json)
 
     def activity(self, **kwargs):
@@ -63,8 +64,6 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
         self.clients.broadcast(self.user_id, resp_json)
 
     def reset(self, **kwargs):
-        self.game.stop()
-        self.game.reset_time()
         resp_json = p_json(color=kwargs['color'], action='reset')
         self.clients.broadcast(self.user_id, resp_json)
 

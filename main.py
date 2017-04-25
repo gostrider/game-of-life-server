@@ -7,7 +7,7 @@ from Service.Game import Game
 
 def router(game, clients):
     return [
-        (r'/ws/test', WebSocketHandler, {'game': game, 'clients': clients}),
+        (r'/ws/game', WebSocketHandler, {'game': game, 'clients': clients}),
     ]
 
 
