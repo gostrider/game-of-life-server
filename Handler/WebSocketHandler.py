@@ -4,9 +4,9 @@ from uuid import uuid4
 
 import tornado.escape as tornado_escape
 import tornado.websocket
-from tornado.ioloop import PeriodicCallback
 
 from Service.Game import transform_input, transform_output
+from Utils.Logger import debug, get_iso_time
 
 
 class WebSocketHandler(tornado.websocket.WebSocketHandler):
@@ -29,7 +29,7 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
         self.user_id = uuid4()
         if self.user_id not in self.clients.get_all_clients():
             self.clients.join((self.user_id, self, []))
-            print(str(self.user_id) + '+')
+            debug(timestamp=get_iso_time(), message=str(self.user_id) + ' connected')
 
     def on_message(self, message):
         payload = tornado_escape.json_decode(message)
@@ -46,10 +46,11 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
 
     def on_close(self):
         self.clients.remove(self.user_id)
-        print(str(self.user_id) + '-')
+        debug(timestamp=get_iso_time(), message=str(self.user_id) + ' disconnected')
 
     def query(self):
         resp_json = p_json(action='query', result=self.game.current())
+        debug(timestamp=get_iso_time(), user=str(self.user_id), message=resp_json)
         self.write_message(resp_json)
 
     def change(self, **kwargs):
@@ -57,14 +58,17 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
         self.game.change(transform_input(kwargs['cells']))
         result_response = transform_output(from_color, self.game.current())
         resp_json = p_json(color=from_color, action='result', cells=list(result_response))
+        debug(timestamp=get_iso_time(), user=str(self.user_id), message=resp_json)
         self.clients.fan_out(resp_json)
 
     def activity(self, **kwargs):
         resp_json = p_json(color=kwargs['color'], action='activity', cells=kwargs['cells'])
+        debug(timestamp=get_iso_time(), user=str(self.user_id), message=resp_json)
         self.clients.broadcast(self.user_id, resp_json)
 
     def reset(self, **kwargs):
         resp_json = p_json(color=kwargs['color'], action='reset')
+        debug(timestamp=get_iso_time(), user=str(self.user_id), message=resp_json)
         self.clients.broadcast(self.user_id, resp_json)
 
 
