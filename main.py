@@ -1,19 +1,17 @@
 from tornado import web, ioloop
 
 from Handler.WebSocketHandler import WebSocketHandler
-from Service.Clients import Clients
-from Service.Game import Game
 
 
-def router(game, clients):
+def router():
     return [
-        (r'/ws/game', WebSocketHandler, {'game': game, 'clients': clients}),
+        (r'/ws/game', WebSocketHandler),
     ]
 
 
 def main():
     app = web.Application(
-        router(Game(), Clients()), autoreload=True
+        router(), autoreload=True
     )
     app.listen(8001)
     ioloop.IOLoop.instance().start()

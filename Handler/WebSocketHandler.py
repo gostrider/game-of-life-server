@@ -1,22 +1,22 @@
-import datetime
-from json import dumps as json_dumps
 from uuid import uuid4
 
 import tornado.escape as tornado_escape
 import tornado.websocket
 
-from Service.Game import transform_input, transform_output
+from Service.Clients import Clients
+from Service.Game import Game, transform_input, transform_output
+from Service.User import User
+from Utils.Format import p_json
 from Utils.Logger import debug, get_iso_time
 
 
 class WebSocketHandler(tornado.websocket.WebSocketHandler):
     def __init__(self, application, request, **kwargs):
+        self.game, self.clients = Game(), Clients()
+        self.user_id = ""
         super().__init__(application, request, **kwargs)
 
-        self.game, self.clients = kwargs['game'], kwargs['clients']
-        self.user_id, self.notification = "", None
-
-    def initialize(self, game, clients):
+    def initialize(self):
         pass
 
     def check_origin(self, origin):
@@ -26,55 +26,131 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
         pass
 
     def open(self):
-        self.user_id = uuid4()
+        user = User(user_id=uuid4(), pending=[], connection=self)
+        self.user_id = user.user_id
         if self.user_id not in self.clients.get_all_clients():
-            self.clients.join((self.user_id, self, []))
-            debug(timestamp=get_iso_time(), message=str(self.user_id) + ' connected')
+            self.clients.join(user)
+            log(self.user_id, 'Connected')
 
     def on_message(self, message):
         payload = tornado_escape.json_decode(message)
-        action = payload['action']
-
-        if action == 'query':
-            self.query()
-        elif action == 'change':
-            self.change(color=payload['color'], cells=payload['cells'])
-        elif action == 'activity':
-            self.activity(color=payload['color'], cells=payload['cells'])
-        elif action == 'reset':
-            self.reset(color=payload['color'])
+        self.dispatch(parse_payload('action', payload), payload)
 
     def on_close(self):
         self.clients.remove(self.user_id)
-        debug(timestamp=get_iso_time(), message=str(self.user_id) + ' disconnected')
+        log(self.user_id, 'Disconnected')
 
-    def query(self):
+    """ Internal methods """
+
+    def dispatch(self, action, payload):
+        """
+        Map input action to behavior.
+        
+        :param action: [String] Name of the action 
+        :param payload: [Dict] Require parameters for behavior
+        :return: None
+        """
+        self.apply_behavior(action)(gen_params(payload))
+
+    def apply_behavior(self, event):
+        """
+        Return behavior according input action.
+        
+        :param event: [String] Name of the action 
+        :return: [Func] Method of behavior
+        """
+        return self.behaviors().get(event)
+
+    def behaviors(self):
+        """
+        Return action behavior mappings.
+        
+        :return: [Dict] { action :: key => behavior :: function } 
+        """
+        return {
+            'query': self.query,
+            'change': self.change,
+            'activity': self.activity,
+            'reset': self.reset
+        }
+
+    def query(self, *args):
+        """
+        Handle player check game status.
+        
+        :param args: [Optional] 
+        :return: None
+        """
         resp_json = p_json(action='query', result=self.game.current())
-        debug(timestamp=get_iso_time(), user=str(self.user_id), message=resp_json)
+        log(self.user_id, resp_json)
         self.write_message(resp_json)
 
-    def change(self, **kwargs):
-        from_color = kwargs['color']
-        self.game.change(transform_input(kwargs['cells']))
-        result_response = transform_output(from_color, self.game.current())
-        resp_json = p_json(color=from_color, action='result', cells=list(result_response))
-        debug(timestamp=get_iso_time(), user=str(self.user_id), message=resp_json)
+    def change(self, params):
+        """
+        Handle action for changing game state.
+        
+        :param params: [Dict] Require keys { color, cells } 
+        :return: None
+        """
+        self.game.change(transform_input(params['cells']))
+        result_response = transform_output(params['color'], self.game.current())
+        resp_json = p_json(color=params['color'], action='result', cells=list(result_response))
+        log(self.user_id, resp_json)
         self.clients.fan_out(resp_json)
 
-    def activity(self, **kwargs):
-        resp_json = p_json(color=kwargs['color'], action='activity', cells=kwargs['cells'])
-        debug(timestamp=get_iso_time(), user=str(self.user_id), message=resp_json)
+    def activity(self, params):
+        """
+        Handle player action affects the game.
+        
+        :param params: [Dict] Require keys { color, cells }
+        :return: None 
+        """
+        resp_json = p_json(color=params['color'], action='activity', cells=params['cells'])
+        log(self.user_id, resp_json)
         self.clients.broadcast(self.user_id, resp_json)
 
-    def reset(self, **kwargs):
-        resp_json = p_json(color=kwargs['color'], action='reset')
-        debug(timestamp=get_iso_time(), user=str(self.user_id), message=resp_json)
+    def reset(self, params):
+        """
+        Handle player reset the game state.
+        
+        :param params: Require keys { color }
+        :return: None
+        """
+        resp_json = p_json(color=params['color'], action='reset')
+        log(self.user_id, resp_json)
         self.clients.broadcast(self.user_id, resp_json)
 
 
-def p_json(**kwargs):
-    return '{}'.format(json_dumps(kwargs))
+def gen_params(payload):
+    """
+    Return fields available from payload.
+    
+    :param payload: [Dict] JSON body 
+    :return: [Dict] { key :: String => Optional[value] }
+    """
+    return {
+        'color': parse_payload('color', payload),
+        'cells': parse_payload('cells', payload)
+    }
 
 
-def current_time():
-    return '{dt:%H}:{dt:%M}:{dt:%S}'.format(dt=datetime.datetime.now())
+def parse_payload(field, payload):
+    """
+    Getter for handling input payload with default value.
+    
+    :param field: [String] JSON field name
+    :param payload: [JSON] JSON body
+    :return: [String] Value of JSON field
+    """
+    return payload.get(field, False)
+
+
+def log(user_id, message):
+    """
+    Log message with user_id using predefined fields.
+    
+    :param user_id: [UUID] UUID of user 
+    :param message: [String] JSON format of log message
+    :return: None
+    """
+    debug(timestamp=get_iso_time(), user=str(user_id), message=message)

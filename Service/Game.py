@@ -13,6 +13,9 @@ class Game(object):
     def current(self):
         return self.state
 
+    def __str__(self):
+        return str(self.state)
+
 
 def transform_input(target):
     """
@@ -51,8 +54,7 @@ def average_color(color):
     rgb = color.split(',')
     remove_sym = map(lambda s: sub(r'[a-zA-Z()]+', '', s), rgb)
     str_to_int = map(lambda n: str(int(int(n) / 3)), remove_sym)
-    to_rgb = 'rgb(' + ','.join(str_to_int) + ')'
-    return to_rgb
+    return 'rgb(' + ','.join(str_to_int) + ')'
 
 
 def neighbours(current):
@@ -117,5 +119,5 @@ if __name__ == '__main__':
     alive = {(1, 0), (3, 0), (2, 0), (10, 1), (10, 2), (10, 3)}
     game = Game()
     game.change(alive)
-    print(str(game.current()))
+    print(game.current())
     pass
