@@ -26,19 +26,37 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
         pass
 
     def open(self):
+        """
+        Web Socket onOpen callback
+        
+        :return: None 
+        """
         user = User(user_id=uuid4(), pending=[], connection=self)
         self.user_id = user.user_id
         if self.user_id not in self.clients.get_all_clients():
             self.clients.join(user)
             log(self.user_id, 'Connected')
+            self.clients.broadcast(self.user_id, str(self.user_id) + ' connected')
 
     def on_message(self, message):
+        """
+        Web Socket onMessage callback
+        
+        :param message: [Object] JSON payload
+        :return: None
+        """
         payload = tornado_escape.json_decode(message)
         self.dispatch(parse_payload('action', payload), payload)
 
     def on_close(self):
+        """
+        Web Socket onClose callback
+        
+        :return: None 
+        """
         self.clients.remove(self.user_id)
         log(self.user_id, 'Disconnected')
+        self.clients.broadcast(self.user_id, str(self.user_id) + ' disconnected')
 
     """ Internal methods """
 
@@ -74,11 +92,11 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
             'reset': self.reset
         }
 
-    def query(self, *args):
+    def query(self, _):
         """
         Handle player check game status.
         
-        :param args: [Optional] 
+        :param _: [Optional] 
         :return: None
         """
         resp_json = p_json(action='query', result=self.game.current())
